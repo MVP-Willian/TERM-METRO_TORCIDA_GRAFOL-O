@@ -95,6 +95,30 @@
   .jogo-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
   .filter-btn{appearance:none;background:var(--bg2);border:1px solid var(--line);color:var(--mut);font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer}
   .filter-btn.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+  .tribo-btn{appearance:none;background:var(--bg2);border:1px solid var(--line);color:var(--mut);font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:20px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:.15s}
+  .tribo-btn:hover{border-color:var(--line2);color:var(--ink)}
+  .tribo-btn.on{color:#0c130f;font-weight:700;border-color:transparent}
+  .tribo-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .tp-jogo{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .tp-jogo-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  .tp-jogo-header:hover{background:rgba(255,255,255,.02)}
+  .tp-jogo-header .rodada-lbl{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:90px}
+  .tp-jogo-header .times-lbl{flex:1;font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px}
+  .tp-jogo-header .placar-lbl{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--amber)}
+  .tp-jogo-header .chevron{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:4px;transition:.15s}
+  .tp-jogo-body{padding:10px 14px;display:none}
+  .tp-jogo-body.open{display:block}
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:4px}
+  .tp-card{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:11px}
+  .tp-card .nm{color:var(--mut);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tp-card .palp{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:.5px}
+  .tp-card .pts-chip{font-size:10px;margin-top:3px;display:inline-block;padding:1px 5px;border-radius:4px}
+  .tp-card.match-exact{border-color:var(--green);background:#0a1f14}
+  .tp-card.match-venc{border-color:var(--amber);background:#1e1608}
+  .tp-card.match-err{border-color:#3a2020;background:#120d0d}
+  .tp-consensus{font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:8px;line-height:1.6}
+  .tp-consensus b{color:var(--ink)}
+  .tp-empty{color:var(--dim);font-family:var(--mono);font-size:12px;padding:16px 0}
   .tip{position:fixed;pointer-events:none;background:#0b1410ee;border:1px solid var(--line2);border-radius:9px;padding:9px 11px;font-family:var(--mono);font-size:11.5px;color:var(--ink);opacity:0;transition:.08s;z-index:30;max-width:250px;line-height:1.5}
   .tip b{color:var(--amber)}
   .foot{color:var(--dim);font-size:11.5px;margin-top:20px;font-family:var(--mono);line-height:1.6}
@@ -120,6 +144,7 @@
     <button class="tab on" data-tab="tribos">🔴 Tribos</button>
     <button class="tab" data-tab="ranking">🏆 Ranking</button>
     <button class="tab" data-tab="jogos">📋 Jogos</button>
+    <button class="tab" data-tab="tribopalpites">🎯 Palpites da Tribo</button>
   </div>
 
   <div class="tabpane on" id="tab-tribos">
@@ -215,6 +240,19 @@
     <div style="margin-top:14px">
       <div class="jogo-filter" id="grupo-filter"></div>
       <div class="jogos-grid" id="jogos-lista"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ABA: PALPITES DA TRIBO ===================== -->
+  <div class="tabpane" id="tab-tribopalpites">
+    <div style="margin-top:14px">
+      <div class="ctl" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:6px;text-transform:uppercase;letter-spacing:.1em">Selecione a tribo (seleção)</div>
+          <div id="tribo-sel" style="display:flex;flex-wrap:wrap;gap:6px;max-width:900px"></div>
+        </div>
+      </div>
+      <div id="tribopalpites-content" style="margin-top:16px"></div>
     </div>
   </div>
 
@@ -527,6 +565,138 @@ function renderJogos(grupoFilter){
     </div>`;}).join('');
 }
 
+/* ============================== PALPITES DA TRIBO ======================== */
+let triboSelecionada = null;
+
+function buildTriboSel(){
+  // Use H1 to determine tribes
+  const R = runCurrent();
+  const fav = R.H1.fav;
+  // Count members per tribe
+  const tribos = {};
+  for(const u in fav){ if(fav[u]){ tribos[fav[u]]=(tribos[fav[u]]||0)+1; } }
+  const sorted = Object.entries(tribos).sort((a,b)=>b[1]-a[1]);
+  const sel = document.getElementById('tribo-sel');
+  sel.innerHTML = sorted.map(([t,n])=>{
+    const cor = COR[t]||'#5a7a6a';
+    return `<button class="tribo-btn" data-tribo="${t}" style="">
+      <span class="tribo-dot" style="background:${cor}"></span>
+      ${t} <span style="color:var(--dim);margin-left:2px">(${n})</span>
+    </button>`;
+  }).join('');
+  sel.querySelectorAll('.tribo-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      sel.querySelectorAll('.tribo-btn').forEach(b=>{ b.classList.remove('on'); b.style.background=''; b.style.color=''; });
+      const t = btn.dataset.tribo;
+      const cor = COR[t]||'#5a7a6a';
+      btn.classList.add('on');
+      btn.style.background = cor;
+      triboSelecionada = t;
+      renderTriboPalpites(t);
+    });
+  });
+}
+
+function renderTriboPalpites(tribo){
+  const R = runCurrent();
+  const fav = R.H1.fav;
+  // Members of this tribe
+  const membros = Object.keys(fav).filter(u=>fav[u]===tribo);
+  const rot = Object.fromEntries(PARTICIPANTES_RAW.map(p=>[p.id,p.rotulo]));
+  const container = document.getElementById('tribopalpites-content');
+
+  if(!membros.length){
+    container.innerHTML = `<div class="tp-empty">Nenhum membro nesta tribo com τ atual.</div>`;
+    return;
+  }
+
+  // Get all games involving this team OR where tribe members have guesses
+  // Strategy: show all games where at least 1 member palpited
+  const jogosMembros = new Set();
+  for(const p of PALPITES_RAW){ if(membros.includes(p.u)) jogosMembros.add(p.g); }
+
+  // Also flag games that directly involve the team
+  const jogosEquipe = new Set(JOGOS_RAW.filter(j=>j.casa===tribo||j.fora===tribo).map(j=>j.id));
+
+  const jogoMap = Object.fromEntries(JOGOS_RAW.map(j=>[j.id,j]));
+  const allJogos = [...jogosMembros].sort();
+
+  const cor = COR[tribo]||'#5a7a6a';
+
+  let html = `<div style="font-family:var(--mono);font-size:12px;color:var(--mut);margin-bottom:12px">
+    Tribo <b style="color:${cor}">${tribo}</b> · <b style="color:var(--ink)">${membros.length} fãs</b> identificados pela heurística H1 (Viés Relativo).
+    Jogos com pelo menos um palpite da tribo: <b style="color:var(--ink)">${allJogos.length}</b>.
+    Jogos com o time: <b style="color:var(--ink)">${jogosEquipe.size}</b>.
+    <br><span style="color:var(--dim)">Clique no jogo para expandir os palpites. Bordas: 
+    <span style="color:var(--green)">verde</span> = acerto placar · 
+    <span style="color:var(--amber)">âmbar</span> = acerto vencedor · 
+    cinza escuro = erro</span>
+  </div>`;
+
+  for(const gid of allJogos){
+    const j = jogoMap[gid];
+    if(!j) continue;
+    const isEquipeJogo = jogosEquipe.has(gid);
+    const palpitesJogo = PALPITES_RAW.filter(p=>p.g===gid && membros.includes(p.u));
+    const placarReal = (j.gc_real!=null&&j.gf_real!=null)?`${j.gc_real}–${j.gf_real}`:'–';
+
+    // Consensus analysis
+    const placares = {};
+    for(const p of palpitesJogo){
+      const k=`${p.gc}–${p.gf}`;
+      placares[k]=(placares[k]||{count:0,pts:p.pts,status:p.status});
+      placares[k].count++;
+    }
+    const topPlacar = Object.entries(placares).sort((a,b)=>b[1].count-a[1].count)[0];
+    const consensus = topPlacar ? `Palpite mais comum: <b>${topPlacar[0]}</b> (${topPlacar[1].count}×)` : '';
+    const acertosPlacar = palpitesJogo.filter(p=>p.status==='ACERTO_PLACAR').length;
+    const acertosVenc = palpitesJogo.filter(p=>p.status==='ACERTO_VENCEDOR').length;
+
+    html += `<div class="tp-jogo">
+      <div class="tp-jogo-header" onclick="toggleJogo('${gid}')">
+        <div class="rodada-lbl">${j.rodada}<br><span style="color:var(--amber);font-size:9px">${j.grupo}${isEquipeJogo?` · <span style="color:${cor}">⚽ jogo da tribo</span>`:''}</span></div>
+        <div class="times-lbl">
+          <span style="color:${COR[j.casa]||'#aaa'}">${j.casa}</span>
+          <span class="placar-lbl">${placarReal}</span>
+          <span style="color:${COR[j.fora]||'#aaa'}">${j.fora}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--dim)">${palpitesJogo.length} palpites</div>
+          <div style="font-family:var(--mono);font-size:10px">
+            <span style="color:var(--green)">${acertosPlacar}✓✓</span>
+            <span style="color:var(--amber);margin-left:4px">${acertosVenc}✓</span>
+          </div>
+        </div>
+        <div class="chevron" id="chev-${gid}">▼</div>
+      </div>
+      <div class="tp-jogo-body" id="body-${gid}">
+        <div class="tp-consensus">${consensus}${consensus&&acertosPlacar>0?' · ':''}${acertosPlacar>0?`<b style="color:var(--green)">${acertosPlacar} acerto${acertosPlacar>1?'s':''} de placar</b>`:''}</div>
+        <div class="tp-grid">`;
+
+    for(const p of palpitesJogo){
+      const cssClass = p.status==='ACERTO_PLACAR'?'match-exact':p.status==='ACERTO_VENCEDOR'?'match-venc':'match-err';
+      const ptsColor = p.status==='ACERTO_PLACAR'?'var(--green)':p.status==='ACERTO_VENCEDOR'?'var(--amber)':'#7a4848';
+      const ptsBg = p.status==='ACERTO_PLACAR'?'#0e2b1c':p.status==='ACERTO_VENCEDOR'?'var(--amber-soft)':'#1a1212';
+      html += `<div class="tp-card ${cssClass}">
+        <div class="nm" title="${rot[p.u]||p.u}">${rot[p.u]||p.u}</div>
+        <div class="palp">${p.gc}–${p.gf}</div>
+        <span class="pts-chip" style="background:${ptsBg};color:${ptsColor}">${p.pts} pts</span>
+      </div>`;
+    }
+
+    html += `</div></div></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleJogo(gid){
+  const body = document.getElementById('body-'+gid);
+  const chev = document.getElementById('chev-'+gid);
+  const open = body.classList.toggle('open');
+  chev.textContent = open ? '▲' : '▼';
+}
+
 /* ============================== CONTROLES =============================== */
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.addEventListener('click',()=>{
@@ -536,6 +706,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     document.getElementById('tab-'+tab.dataset.tab).classList.add('on');
     if(tab.dataset.tab==='ranking')renderRanking();
     if(tab.dataset.tab==='jogos')renderJogos();
+    if(tab.dataset.tab==='tribopalpites'){ buildTriboSel(); if(triboSelecionada)renderTriboPalpites(triboSelecionada); }
   });
 });
 document.getElementById('seg').addEventListener('click',e=>{
